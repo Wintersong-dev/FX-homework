@@ -5,11 +5,8 @@
 <?import javafx.scene.control.TextField?>
 <GridPane fx:controller="sample.Controller"
           xmlns:fx="http://javafx.com/fxml" alignment="center" hgap="10" vgap="10">
-    <Button text="btn1" onAction="#btn1Click" GridPane.columnIndex="0" GridPane.rowIndex="0"/>
-    <Button text="btn2" onAction="#btn2Click" GridPane.columnIndex="0" GridPane.rowIndex="1"/>
-    <Button text="btn3" GridPane.columnIndex="1" GridPane.rowIndex="0"/>
-    <Button text="btn4" GridPane.columnIndex="1" GridPane.rowIndex="1"/>
 
-    <TextArea fx:id="textArea" prefHeight="100" prefWidth="200" GridPane.rowIndex="2" GridPane.columnIndex="0" editable="false" />
-    <TextField fx:id="inputField" prefWidth="200" GridPane.rowIndex="3" GridPane.columnIndex="0" />
+    <TextArea fx:id="textArea" prefHeight="100" prefWidth="200" GridPane.rowIndex="0" GridPane.columnIndex="0" GridPane.columnSpan="2" editable="false" />
+    <TextField fx:id="inputField" onKeyReleased="#textFieldUpdated" prefWidth="200" GridPane.rowIndex="1" GridPane.columnIndex="0" />
+    <Button text="Send" onAction="#btnClick" fx:id="sendBtn" GridPane.columnIndex="1" GridPane.rowIndex="1"/>
 </GridPane>
