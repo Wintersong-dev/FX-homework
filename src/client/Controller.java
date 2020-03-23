@@ -1,13 +1,23 @@
 package client;
 
 import javafx.application.Platform;
+import javafx.event.ActionEvent;
+import javafx.event.EventHandler;
 import javafx.fxml.FXML;
+import javafx.fxml.FXMLLoader;
 import javafx.fxml.Initializable;
+import javafx.scene.Parent;
+import javafx.scene.Scene;
+import javafx.scene.control.ListView;
 import javafx.scene.control.PasswordField;
 import javafx.scene.control.TextArea;
 import javafx.scene.control.TextField;
+import javafx.scene.input.MouseEvent;
 import javafx.scene.layout.HBox;
+import javafx.stage.Modality;
 import javafx.stage.Stage;
+import javafx.stage.Window;
+import javafx.stage.WindowEvent;
 
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
@@ -19,15 +29,17 @@ import java.util.ResourceBundle;
 
 public class Controller implements Initializable {
     @FXML
-    public HBox authPanel;
+    private HBox authPanel;
     @FXML
-    public HBox msgPanel;
+    private HBox msgPanel;
     @FXML
-    public TextField loginField;
+    private TextField loginField;
     @FXML
-    public PasswordField passwordField;
+    private PasswordField passwordField;
     @FXML
-    private TextArea textArea;
+    private ListView clientList;
+    @FXML
+    public TextArea textArea;
     @FXML
     private TextField msgField;
 
@@ -36,10 +48,16 @@ public class Controller implements Initializable {
     private boolean isAuth = false;
     private String nickname;
     private final String NO_AUTH = "Chat lobby";
+    private final int MSG_COMMON = 0;
+    private final int MSG_AUTHOK = 1;
+    private final int MSG_CLIST = 2;
+
 
     private Socket socket;
-    DataInputStream in;
-    DataOutputStream out;
+    private DataInputStream in;
+    private DataOutputStream out;
+
+    Stage regStage;
 
     public void setAuth(boolean _auth) {
         isAuth = _auth;
@@ -47,6 +65,9 @@ public class Controller implements Initializable {
         authPanel.setManaged(!_auth);
         msgPanel.setVisible(_auth);
         msgPanel.setManaged(_auth);
+        clientList.setVisible(_auth);
+        clientList.setManaged(_auth);
+
         if (!_auth) {
             setNickname("");
         }
@@ -72,7 +93,7 @@ public class Controller implements Initializable {
 
     public void sendMsg()  {
         try {
-            out.writeUTF(msgField.getText());
+            sendMsgEx(msgField.getText());
             msgField.clear();
             msgField.requestFocus();
         } catch (IOException e) {
@@ -83,6 +104,19 @@ public class Controller implements Initializable {
     @Override
     public void initialize(URL url, ResourceBundle resourceBundle) {
         setTitle(NO_AUTH);
+        Platform.runLater(() -> {
+            Window scene = textArea.getScene().getWindow();
+            scene.setOnCloseRequest(new EventHandler<WindowEvent>() {
+                @Override
+                public void handle(WindowEvent windowEvent) {
+                    try {
+                        socket.close();
+                        setAuth(false);
+                        regStage = null;
+                    } catch (IOException | NullPointerException ignore) {}
+                }
+            });
+        });
     }
 
     public void connect() {
@@ -96,8 +130,7 @@ public class Controller implements Initializable {
                 try {
                     while (true) {
                         str = in.readUTF();
-                        System.out.println(str);
-                        if (str.startsWith("/authok ")) {
+                        if (parseMsg(str) == MSG_AUTHOK) {
                             setNickname(str.split(" ")[1]);
                             setAuth(true);
                             break;
@@ -135,8 +168,24 @@ public class Controller implements Initializable {
     }
 
     private void receiveMsg() throws IOException {
+
         String str = in.readUTF();
-        textArea.appendText(str + "\n");
+        switch (parseMsg(str)) {
+            case MSG_CLIST:
+                Platform.runLater(() -> {
+                    clientList.getItems().clear();
+
+                    String[] msg = str.split(" ");
+                    for (int i = 0; i < msg.length; i++) {
+                        if (i != 0) {
+                            clientList.getItems().add(msg[i]);
+                        }
+                    }
+                });
+                break;
+            case MSG_COMMON:
+                textArea.appendText(str + "\n");
+        }
     }
 
     void setTitle(String title) {
@@ -145,4 +194,69 @@ public class Controller implements Initializable {
         });
     }
 
+    public void sendPM(MouseEvent mouseEvent) {
+        msgField.setText("/w " + clientList.getSelectionModel().getSelectedItem().toString() + " ");
+        msgField.requestFocus();
+    }
+
+    private Stage createRegWindow() {
+
+        Parent root = null;
+        Stage stage = null;
+        try {
+            FXMLLoader loader = new FXMLLoader(getClass().getResource("reg.fxml"));
+            root = loader.load();
+            stage = new Stage();
+            stage.initModality(Modality.APPLICATION_MODAL);
+
+            RegController regController = loader.getController();
+            regController.controller = this;
+
+            stage.setTitle("Регистрация");
+            stage.setScene(new Scene(root, 300, 275));
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+
+        return stage;
+    }
+
+    public void requestReg(ActionEvent actionEvent) {
+        if (regStage == null) {
+            regStage = createRegWindow();
+        }
+        regStage.show();
+    }
+
+    void tryReg(String login, String pwd, String nick) {
+        String msg = String.format("/reg %s %s %s", login, pwd, nick);
+        if (socket == null || socket.isClosed()) {
+            connect();
+        }
+
+        try {
+            sendMsgEx(msg);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+
+
+    }
+
+    private int parseMsg(String msg) {
+        int res = MSG_COMMON;
+        if (msg.startsWith("/authok ")) {
+            res = MSG_AUTHOK;
+        } else if (msg.startsWith("/clist ")) {
+            res = MSG_CLIST;
+        }
+
+        return res;
+    }
+
+    private void sendMsgEx(String msg) throws IOException {
+        out.writeUTF(msg);
+        System.out.println(msg);
+        out.flush();
+    }
 }

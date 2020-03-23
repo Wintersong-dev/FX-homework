@@ -9,7 +9,7 @@ public class SysClient implements Connectable {
     }
 
     @Override
-    public void sendMsg(Connectable sender, String msg) {
+    public void sendMsg(String sender, String msg) {
         // Ничего не делаем, это заглушка
     }
 }

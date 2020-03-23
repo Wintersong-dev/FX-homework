@@ -16,7 +16,7 @@ public class Server {
         clients = new Vector<>();
         ServerSocket server = null;
         Socket socket = null;
-        authService = new SimpleAuth();
+        authService = new SimpleAuth(this);
         try {
             server = new ServerSocket(PORT);
             System.out.println("Сервер запущен");
@@ -29,9 +29,9 @@ public class Server {
 
         // Сервер упал
         } catch (IOException e) {
+            broadcast(systemUser, "Неполадки на сервере, отключение...", systemUser);
             for (ClientHandler client : clients) {
-                client.sendMsg(systemUser, "Неполадки на сервере, отключение...");
-                client.disconnect();
+                client.disconnect(false);
             }
             try {
                 socket.close();
@@ -49,12 +49,14 @@ public class Server {
 
     void addClient(ClientHandler client) {
         clients.add(client);
+        sendClientList();
     }
 
     void removeClient(ClientHandler client) {
         try {
             clients.remove(client);
         } catch (Exception ignore) {}
+        sendClientList();
     }
 
     // Отправка на всех (не более 1 исключения, в качестве исключения во избежание NPE обычно передается псевдопользователь systemUser)
@@ -62,17 +64,22 @@ public class Server {
         for (ClientHandler client : clients) {
             try {
                 if (!client.getNickname().equals(ignored.getNickname())) {
-                    client.sendMsg(sender, msg);
+                    sendMsg(sender, client, msg);
                 }
             } catch (NullPointerException ignore) {}
 
         }
     }
 
+    // Оболочка для отправки сообщения, чтобы один клиент не "видел" другого
+    private void sendMsg(Connectable sender, Connectable receiver, String msg) {
+        receiver.sendMsg(sender.getNickname(), msg);
+    }
+
     // Отправка ЛС
     void privateMessage(Connectable sender, Connectable receiver, String msg) {
-        sender.sendMsg(sender, receiver.getNickname() + ", " + msg);
-        receiver.sendMsg(sender,receiver.getNickname() + ", " + msg);
+        sender.sendMsg(sender.getNickname(), receiver.getNickname() + ", " + msg);
+        receiver.sendMsg(sender.getNickname(),receiver.getNickname() + ", " + msg);
     }
 
     // Получаем клиента по его нику
@@ -85,5 +92,27 @@ public class Server {
 
         // Клиент не найден
         return null;
+    }
+
+    boolean isClientOnline(String login) {
+        boolean res = false;
+
+        for (ClientHandler client : clients) {
+            if (client.getLogin() == login) {
+                res = true;
+                break;
+            }
+        }
+
+        return res;
+    }
+
+    void sendClientList() {
+        StringBuilder str = new StringBuilder();
+        str.append("/clist");
+        for (ClientHandler client : clients) {
+            str.append(" " + client.getNickname());
+        }
+        broadcast(systemUser, str.toString(), systemUser);
     }
 }
